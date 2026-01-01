@@ -17,9 +17,50 @@ let activityBuffer: ActivityBuffer = {
 
 const FLUSH_INTERVAL_MS = 30 * 1000; // dev mode
 
+function getRepoPath(context: vscode.ExtensionContext) {
+	return path.join(context.globalStorageUri.fsPath, 'activity-repo');
+}
+
+import { execSync } from 'child_process';
+
+function ensureRepoCloned(context: vscode.ExtensionContext) {
+	const repoPath = getRepoPath(context);
+
+	if (fs.existsSync(path.join(repoPath, '.git'))) {
+		return;
+	}
+
+	fs.mkdirSync(repoPath, { recursive: true });
+
+	const repoUrl = 'https://github.com/skupperr/codepulse-activity.git';
+
+	try {
+		execSync(`git clone ${repoUrl} "${repoPath}"`, {
+			stdio: 'ignore'
+		});
+	} catch (err: any) {
+		vscode.window.showWarningMessage(
+			`CodePulse: Failed to clone activity repo. Tracking will continue locally.`
+		);
+	}
+}
+
+
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+
+	try {
+		const gitVersion = execSync('git --version').toString();
+		vscode.window.showInformationMessage(gitVersion);
+	} catch (e: any) {
+		vscode.window.showErrorMessage(
+			`Git not available to CodePulse: ${e.message}`
+		);
+	}
+
+
 	vscode.window.showInformationMessage('CodePulse is running');
 
 	const disposable = vscode.workspace.onDidChangeTextDocument((event) => {
@@ -43,6 +84,8 @@ export function activate(context: vscode.ExtensionContext) {
 			1500
 		);
 	});
+
+	ensureRepoCloned(context);
 
 	const interval = setInterval(() => flushActivity(context), FLUSH_INTERVAL_MS);
 
@@ -76,7 +119,7 @@ function flushActivity(context: vscode.ExtensionContext) {
 		linesChanged: activityBuffer.linesChanged
 	};
 
-	const baseDir = context.globalStorageUri.fsPath;
+	const baseDir = path.join(getRepoPath(context), 'activity');
 
 	const dirPath = path.join(
 		baseDir,
@@ -89,7 +132,8 @@ function flushActivity(context: vscode.ExtensionContext) {
 
 	const fileName = `${String(now.getHours()).padStart(2, '0')}-${String(
 		now.getMinutes()
-	).padStart(2, '0')}.json`;
+	).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}.json`;
+
 
 	const filePath = path.join(dirPath, fileName);
 
@@ -107,6 +151,48 @@ function flushActivity(context: vscode.ExtensionContext) {
 		languages: new Set(),
 		linesChanged: 0
 	};
+
+	commitAndPush(getRepoPath(context));
 }
 
 
+function commitAndPush(repoPath: string) {
+	try {
+		if (!hasGitChanges(repoPath)) {
+			return;
+		}
+
+		execSync('git add .', { cwd: repoPath });
+
+		execSync(
+			`git commit -m "activity: coding snapshot"`,
+			{ cwd: repoPath }
+		);
+
+		execSync('git push', { cwd: repoPath });
+
+		vscode.window.setStatusBarMessage(
+			`CodePulse pushed to GitHub`,
+			3000
+		);
+
+	} catch (err: any) {
+		vscode.window.showWarningMessage(
+			`CodePulse git error: ${err.message}`
+		);
+	}
+}
+
+
+
+function hasGitChanges(repoPath: string): boolean {
+	try {
+		const output = execSync('git status --porcelain', {
+			cwd: repoPath
+		}).toString();
+
+		return output.trim().length > 0;
+	} catch {
+		return false;
+	}
+}
