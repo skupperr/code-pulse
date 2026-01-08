@@ -1,0 +1,26 @@
+{
+  "date": "2026-01-06",
+  "summary": "- src\\extension.ts: 160 changes\n- out\\extension.js.map: 133 changes\n- out\\extension.js: 133 changes\n- package.json: 14 changes\n- .vscode\\settings.json: 12 changes\n- .vscode\\tasks.json: 12 changes\n- .vscode\\launch.json: 12 changes\n- out\\test\\extension.test.js.map: 10 changes\n- out\\test\\extension.test.js: 10 changes\n- README.md: 6 changes\n- out: 1 changes\n- out\\test: 1 changes",
+  "statistics": {
+    "totalFiles": 12,
+    "totalChanges": 504,
+    "mostEditedFile": "src\\extension.ts",
+    "workDuration": "217h 22m",
+    "fileTypes": {
+      "ts": 160,
+      "json": 50,
+      "map": 143,
+      "js": 143,
+      "unknown": 2,
+      "md": 6
+    },
+    "peakActivityHour": "19:00-20:00",
+    "totalLinesChanged": 61448
+  },
+  "projectDetails": {
+    "branch": "main",
+    "commitHash": "42efbb3",
+    "remote": "https://github.com/skupperr/code-pulse.git",
+    "name": "d:\\CodePulse\\code-pulse"
+  }
+}

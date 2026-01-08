@@ -1,3 +1,24 @@
+CodePulse passively tracks your coding activity and snapshots it to your own Git repository.
+
+Understand your real coding habits without dashboards, accounts, or SaaS lock-in.
+Your data stays yours — in Git.
+
+## What it does
+- Tracks files edited, languages used, and lines changed
+- Creates timestamped activity snapshots
+- Syncs activity to a user-owned Git repository
+- Works offline and retries automatically
+- Manual “Force Snapshot” button
+
+## Setup
+1. Install CodePulse
+2. Create a Git repository (private or public)
+3. Paste the repository URL into CodePulse settings
+4. Start coding
+
+
+
+
 # code-pulse README
 
 This is the README for your extension "code-pulse". After writing up a brief description, we recommend including the following sections.

@@ -22,9 +22,16 @@ let activityBuffer: ActivityBuffer = {
 let gitInProgress = false;
 let pushPending = false;
 let successNotifiedForBatch = false;
+let repoGeneration = 0;
 
 
-const FLUSH_INTERVAL_MS = 30 * 10000; // dev mode
+
+// const FLUSH_INTERVAL_MS = 30 * 10000; // dev mode
+
+function getConfig() {
+	return vscode.workspace.getConfiguration('codepulse');
+}
+
 
 function getRepoPath(context: vscode.ExtensionContext) {
 	return path.join(context.globalStorageUri.fsPath, 'activity-repo');
@@ -33,7 +40,12 @@ function getRepoPath(context: vscode.ExtensionContext) {
 
 
 function ensureRepoCloned(context: vscode.ExtensionContext) {
+	const repoUrl = getConfig().get<string>('repoUrl', '').trim();
 	const repoPath = getRepoPath(context);
+
+	if (!repoUrl) {
+		return; // user hasn’t configured it yet
+	}
 
 	if (fs.existsSync(path.join(repoPath, '.git'))) {
 		return;
@@ -41,18 +53,28 @@ function ensureRepoCloned(context: vscode.ExtensionContext) {
 
 	fs.mkdirSync(repoPath, { recursive: true });
 
-	const repoUrl = 'https://github.com/skupperr/codepulse-activity.git';
+	// try {
+	// 	execSync(`git clone ${repoUrl} "${repoPath}"`, {
+	// 		stdio: 'ignore'
+	// 	});
+	// } catch {
+	// 	notifyWarn(
+	// 		'CodePulse: Failed to clone activity repo. Check repo URL and authentication.'
+	// 	);
+	// }
 
 	try {
 		execSync(`git clone ${repoUrl} "${repoPath}"`, {
-			stdio: 'ignore'
+			stdio: 'pipe'
 		});
-	} catch (err: any) {
-		vscode.window.showWarningMessage(
-			`CodePulse: Failed to clone activity repo. Tracking will continue locally.`
+	} catch {
+		notifyWarn(
+			'CodePulse: Failed to clone activity repo. Check repo URL and authentication.'
 		);
 	}
+
 }
+
 
 
 
@@ -60,9 +82,42 @@ function ensureRepoCloned(context: vscode.ExtensionContext) {
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
+	vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('codepulse.snapshotIntervalMinutes')) {
+			clearInterval(interval);
+			interval = setInterval(
+				() => flushActivity(context),
+				getSnapshotIntervalMs()
+			);
+		}
+
+		if (e.affectsConfiguration('codepulse.repoUrl')) {
+			repoGeneration++;
+
+			const repoPath = getRepoPath(context);
+
+			if (fs.existsSync(repoPath)) {
+				fs.rmSync(repoPath, { recursive: true, force: true });
+			}
+
+			ensureRepoCloned(context);
+		}
+
+
+	});
+
+
+	function getSnapshotIntervalMs() {
+		const minutes = getConfig().get<number>(
+			'snapshotIntervalMinutes',
+			30
+		);
+		return Math.max(minutes, 5) * 60 * 1000;
+	}
+
 	try {
 		const gitVersion = execSync('git --version').toString();
-		vscode.window.showInformationMessage(gitVersion);
+		notifyInfo(gitVersion);
 	} catch (e: any) {
 		vscode.window.showErrorMessage(
 			`Git not available to CodePulse: ${e.message}`
@@ -70,9 +125,13 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 
-	vscode.window.showInformationMessage('CodePulse is running');
+	notifyInfo('CodePulse is running');
 
 	const disposable = vscode.workspace.onDidChangeTextDocument((event) => {
+		if (!getConfig().get<boolean>('enabled')) {
+			return;
+		}
+
 		const doc = event.document;
 
 		if (doc.uri.scheme !== 'file') {
@@ -95,9 +154,21 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	ensureRepoCloned(context);
+
+	const repoUrl = getConfig().get<string>('repoUrl', '').trim();
+
+	if (!repoUrl && getConfig().get<boolean>('enableGitSync')) {
+		notifyWarn(
+			'CodePulse: Set a Git repository URL to enable syncing.'
+		);
+	}
+
 	void tryPush(getRepoPath(context));
 
-	const interval = setInterval(() => flushActivity(context), FLUSH_INTERVAL_MS);
+	let interval = setInterval(
+		() => flushActivity(context),
+		getSnapshotIntervalMs()
+	);
 
 
 	context.subscriptions.push({
@@ -149,18 +220,19 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() { }
 
 
-function flushActivity(
-	context: vscode.ExtensionContext,
-	manual = false
-) {
+function flushActivity(context: vscode.ExtensionContext, manual = false) {
+
+	if (!getConfig().get<boolean>('enabled')) {
+		return;
+	}
+
+
 	if (
 		activityBuffer.files.size === 0 &&
 		activityBuffer.linesChanged === 0
 	) {
 		if (manual) {
-			vscode.window.showInformationMessage(
-				'CodePulse: No activity to snapshot'
-			);
+			notifyInfo('CodePulse: No activity to snapshot');
 		}
 		return;
 	}
@@ -208,7 +280,14 @@ function flushActivity(
 		linesChanged: 0
 	};
 
-	void commitAndPush(getRepoPath(context));
+	if (
+		getConfig().get<boolean>('enableGitSync') &&
+		getConfig().get<string>('repoUrl')?.trim()
+	) {
+		void commitAndPush(getRepoPath(context));
+	}
+
+
 }
 
 
@@ -234,34 +313,159 @@ async function commitAndPush(repoPath: string) {
 		successNotifiedForBatch = false;
 
 		await tryPush(repoPath);
-	} catch (err: any) {
-		console.warn('CodePulse git error:', err.message);
-	} finally {
+	}
+	// catch (err: any) {
+	// 	console.warn('CodePulse git error:', err.message);
+	// }
+	catch (err: any) {
+		const msg = err.stderr?.toString() || err.message;
+		notifyWarn(classifyGitError(msg));
+		pushPending = false; // ❗ not retryable
+	}
+
+	finally {
 		gitInProgress = false;
 	}
 }
 
 
 
-async function tryPush(repoPath: string) {
+async function tryPush(repoPath: string, generation = repoGeneration) {
+	if (generation !== repoGeneration) return;
+
 	try {
 		await execAsync('git push', { cwd: repoPath });
 
 		if (!successNotifiedForBatch) {
-			vscode.window.showInformationMessage(
-				'CodePulse synced to GitHub'
-			);
+			notifyInfo('CodePulse synced to GitHub');
 			successNotifiedForBatch = true;
 		}
 
 		pushPending = false;
-	} catch (err: any) {
-		pushPending = true;
-
-		vscode.window.showWarningMessage(
-			'CodePulse push failed. Will retry automatically.'
-		);
 	}
+	// catch (err: any) {
+	// 	if (generation !== repoGeneration) return;
+
+	// 	const stderr = err?.stderr || err?.message || '';
+	// 	const classification = classifyGitError(stderr);
+
+	// 	if (classification.type === 'network') {
+	// 		pushPending = true;
+	// 		notifyWarn(classification.message);
+	// 		return;
+	// 	}
+
+	// 	// ❌ Fatal errors — do NOT retry
+	// 	pushPending = false;
+
+	// 	notifyWarn(
+	// 		`CodePulse sync failed: ${classification.message}`
+	// 	);
+	// }
+	catch (err: any) {
+		const msg = err.stderr?.toString() || err.message;
+		const userMessage = classifyGitError(msg);
+
+		notifyWarn(userMessage);
+
+		// Retry ONLY for network issues
+		if (userMessage.includes('offline')) {
+			pushPending = true;
+		} else {
+			pushPending = false;
+		}
+	}
+
 }
 
 
+
+// function classifyGitError(stderr: string): {
+// 	type: 'auth' | 'repo' | 'network' | 'unknown';
+// 	message: string;
+// } {
+// 	const msg = stderr.toLowerCase();
+
+// 	if (
+// 		msg.includes('permission denied') ||
+// 		msg.includes('access denied') ||
+// 		msg.includes('403') ||
+// 		msg.includes('authentication failed') ||
+// 		msg.includes('could not read from remote repository')
+// 	) {
+// 		return {
+// 			type: 'auth',
+// 			message:
+// 				'You do not have permission to push to this repository.'
+// 		};
+// 	}
+
+// 	if (
+// 		msg.includes('repository not found') ||
+// 		msg.includes('not found') ||
+// 		msg.includes('does not exist') ||
+// 		msg.includes('not a git repository')
+
+// 	) {
+// 		return {
+// 			type: 'repo',
+// 			message:
+// 				'The configured repository does not exist or is incorrect.'
+// 		};
+// 	}
+
+// 	if (
+// 		msg.includes('could not resolve host') ||
+// 		msg.includes('network') ||
+// 		msg.includes('timed out') ||
+// 		msg.includes('connection')
+// 	) {
+// 		return {
+// 			type: 'network',
+// 			message:
+// 				'Network issue detected. Changes will sync automatically.'
+// 		};
+// 	}
+
+// 	return {
+// 		type: 'unknown',
+// 		message: 'Git push failed due to an unknown error.'
+// 	};
+// }
+
+function classifyGitError(message: string): string {
+	const msg = message.toLowerCase();
+
+	if (msg.includes('repository not found')) {
+		return 'The configured repository does not exist or the URL is incorrect.';
+	}
+
+	if (msg.includes('access denied') || msg.includes('permission')) {
+		return 'You do not have permission to push to this repository.';
+	}
+
+	if (msg.includes('not a git repository')) {
+		return 'The configured repository is invalid or was not cloned correctly.';
+	}
+
+	if (msg.includes('could not resolve host') || msg.includes('network')) {
+		return 'CodePulse is offline. Changes will sync automatically.';
+	}
+
+	return 'CodePulse push failed due to an unknown Git error.';
+}
+
+
+
+
+function notifyInfo(message: string) {
+	if (getConfig().get<boolean>('enableNotifications')) {
+		vscode.window.showInformationMessage(message);
+	}
+}
+
+function notifyWarn(message: string) {
+	if (getConfig().get<boolean>('enableNotifications')) {
+		vscode.window.showWarningMessage(message);
+	}
+}

@@ -1,7 +1,8 @@
 {
   "name": "code-pulse",
-  "displayName": "code-pulse",
+  "displayName": "CodePulse",
   "description": "Tracks coding activity for GitHub contributions",
+  "keywords": ["git", "productivity", "tracking", "activity"],
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.107.0"
@@ -9,7 +10,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": ["*"],
+  "activationEvents": [
+    "*"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -17,7 +20,38 @@
         "command": "code-pulse.helloWorld",
         "title": "Hello World"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "CodePulse",
+      "properties": {
+        "codepulse.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable CodePulse tracking"
+        },
+        "codepulse.snapshotIntervalMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "How often CodePulse snapshots activity (in minutes)"
+        },
+        "codepulse.enableGitSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically commit and push snapshots to GitHub"
+        },
+        "codepulse.enableNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications for sync status"
+        },
+        "codepulse.repoUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Git repository URL where CodePulse will store activity (must be an existing repo)"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
