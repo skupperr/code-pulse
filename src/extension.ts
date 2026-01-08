@@ -232,6 +232,7 @@ function flushActivity(context: vscode.ExtensionContext, manual = false) {
 	}
 
 
+	
 	if (
 		activityBuffer.files.size === 0 &&
 		activityBuffer.linesChanged === 0
