@@ -1,0 +1,29 @@
+{
+  "date": "2026-01-09",
+  "summary": "- src\\extension.ts: 211 changes\n- out\\extension.js.map: 159 changes\n- out\\extension.js: 159 changes\n- README.md: 65 changes\n- package.json: 52 changes\n- .vscode\\settings.json: 18 changes\n- .vscode\\tasks.json: 18 changes\n- .vscode\\launch.json: 18 changes\n- out\\test\\extension.test.js.map: 10 changes\n- out\\test\\extension.test.js: 10 changes\n- privacy.md: 5 changes\n- code-pulse-0.1.0.vsix: 5 changes\n- images\\Screenshot_1.png: 3 changes\n- out: 2 changes\n- PRIVACY.md: 2 changes\n- images: 2 changes\n- images\\screenshot_1.png: 2 changes\n- out\\test: 1 changes\n- tsconfig.json: 1 changes\n- package-lock.json: 1 changes\n- code-pulse-0.0.1.vsix: 1 changes\n- LICENSE.txt: 1 changes",
+  "statistics": {
+    "totalFiles": 22,
+    "totalChanges": 746,
+    "mostEditedFile": "src\\extension.ts",
+    "workDuration": "271h 28m",
+    "fileTypes": {
+      "ts": 211,
+      "json": 108,
+      "map": 169,
+      "js": 169,
+      "unknown": 5,
+      "md": 72,
+      "vsix": 6,
+      "png": 5,
+      "txt": 1
+    },
+    "peakActivityHour": "19:00-20:00",
+    "totalLinesChanged": 105421
+  },
+  "projectDetails": {
+    "branch": "main",
+    "commitHash": "1ccf07e",
+    "remote": "https://github.com/skupperr/code-pulse.git",
+    "name": "d:\\CodePulse\\code-pulse"
+  }
+}
